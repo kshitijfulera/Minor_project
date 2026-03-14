@@ -1,9 +1,16 @@
+import Hero from "../components/sections/Hero"
+import Navbar from "../components/layout/Navbar"
+import UploadSection from "../components/sections/UploadSection"
 export default function Home() {
   return (
-    <main className="flex min-h-screen items-center justify-center">
-      <h1 className="text-red-800 text-3xl hover:text-blue-700 font-semibold">
-        AI Level Balancer
-      </h1>
+    <main className="min-h-screen bg-white">
+
+      <Navbar />
+
+      <Hero />
+
+      <UploadSection />
+
     </main>
   )
-} 
+}
