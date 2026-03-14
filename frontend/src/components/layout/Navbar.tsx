@@ -3,7 +3,7 @@ export default function Navbar() {
     <nav className="w-full border-b border-slate-200 bg-white">
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
 
-        <div className="text-xl font-semibold text-slate-900">
+        <div className="text-3xl font-semibold text-slate-900">
           AI Level Balancer
         </div>
 
