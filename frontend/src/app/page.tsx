@@ -1,5 +1,6 @@
-import Hero from "../components/sections/Hero"
 import Navbar from "../components/layout/Navbar"
+import Hero from "../components/sections/Hero"
+import UploadSection from "../components/sections/UploadSection"
 
 export default function Home() {
   return (
@@ -9,6 +10,7 @@ export default function Home() {
 
       <Hero />
 
+      <UploadSection />
 
     </main>
   )
