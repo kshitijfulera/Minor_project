@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from FastAPI import FastAPI, UploadFile, File
 from typing import List
 from utils.feature_extractor import extract_features
 
