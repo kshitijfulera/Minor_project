@@ -1,6 +1,7 @@
-from FastAPI import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File
 from typing import List
 from utils.feature_extractor import extract_features
+from ml_model.predict import predict_difficulty
 
 app = FastAPI()
 
@@ -10,9 +11,7 @@ def root():
 
 
 @app.post("/upload-level")
-async def upload_level(
-    files: List[UploadFile] = File(..., description="Upload JSON or image files")
-):
+async def upload_level(files: List[UploadFile] = File(...)):
     results = []
 
     for file in files:
@@ -20,9 +19,12 @@ async def upload_level(
 
         features = extract_features(content)
 
+        difficulty = predict_difficulty(features)
+
         results.append({
             "filename": file.filename,
-            "features": features
+            "features": features,
+            "difficulty_score": difficulty
         })
 
     return {
