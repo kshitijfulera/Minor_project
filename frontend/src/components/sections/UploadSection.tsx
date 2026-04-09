@@ -6,21 +6,35 @@ import { useDropzone } from "react-dropzone"
 export default function UploadSection() {
 
   const [files, setFiles] = useState<File[]>([])
+  const [apiResponse, setApiResponse] = useState<any>(null)
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  // onDrop function
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const formData = new FormData()
 
-    const validFiles = acceptedFiles.filter((file) =>
-      file.type === "application/json" ||
-      file.type.startsWith("image/")
-    )
+    acceptedFiles.forEach((file) => {
+      formData.append("files", file)
+    })
 
-    setFiles((prev) => [...prev, ...validFiles])
+    try {
+      const response = await fetch("http://127.0.0.1:8000/upload-level", {
+        method: "POST",
+        body: formData
+      })
 
+      const data = await response.json()
+
+      console.log("API RESPONSE:", data)
+
+      setApiResponse(data)
+
+    } catch (error) {
+      console.error("Error uploading:", error)
+    }
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    multiple: true
+    onDrop
   })
 
   return (
@@ -57,6 +71,42 @@ export default function UploadSection() {
         </div>
 
         {/* Uploaded Files */}
+
+        {apiResponse && (
+          <div className="mt-10">
+
+            <h3 className="text-xl font-semibold text-slate-900 mb-4">
+              AI Analysis Result
+            </h3>
+
+            {apiResponse.data.map((item: any, index: number) => (
+              <div
+                key={index}
+                className="border border-slate-200 rounded-lg p-4 mb-4"
+              >
+
+                <p className="text-slate-700">
+                  <strong>File:</strong> {item.filename}
+                </p>
+
+                <p className="text-slate-700">
+                  <strong>Difficulty:</strong> {item.difficulty_score.toFixed(2)}
+                </p>
+
+                <div className="mt-2">
+                  <strong>Recommendations:</strong>
+                  <ul className="list-disc ml-6 text-slate-600">
+                    {item.recommendations.map((rec: string, i: number) => (
+                      <li key={i}>{rec}</li>
+                    ))}
+                  </ul>
+                </div>
+
+              </div>
+            ))}
+
+          </div>
+        )}
 
         {files.length > 0 && (
           <div className="mt-10">
