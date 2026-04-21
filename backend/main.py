@@ -2,8 +2,18 @@ from fastapi import FastAPI, UploadFile, File
 from typing import List
 from utils.feature_extractor import extract_features
 from ml_model.predict import predict_difficulty
+from services.recommendation_engine import generate_recommendation
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
@@ -21,10 +31,13 @@ async def upload_level(files: List[UploadFile] = File(...)):
 
         difficulty = predict_difficulty(features)
 
+        recommendations = generate_recommendation(features, difficulty)
+
         results.append({
             "filename": file.filename,
             "features": features,
-            "difficulty_score": difficulty
+            "difficulty_score": difficulty,
+            "recommendations": recommendations
         })
 
     return {

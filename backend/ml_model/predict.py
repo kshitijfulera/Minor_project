@@ -1,4 +1,5 @@
 import pickle
+import pandas as pd
 
 # Load model
 with open("ml_model/model.pkl", "rb") as f:
@@ -6,12 +7,12 @@ with open("ml_model/model.pkl", "rb") as f:
 
 def predict_difficulty(features: dict):
 
-    input_data = [[
-        features["enemy_count"],
-        features["spawn_rate"],
-        features["rewards"],
-        features["checkpoints"]
-    ]]
+    input_data = pd.DataFrame([{
+        "enemy_count": features["enemy_count"],
+        "spawn_rate": features["spawn_rate"],
+        "rewards": features["rewards"],
+        "checkpoints": features["checkpoints"]
+    }])
 
     prediction = model.predict(input_data)[0]
 
