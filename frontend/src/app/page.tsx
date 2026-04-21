@@ -1,17 +1,15 @@
-import Navbar from "../components/layout/Navbar"
-import Hero from "../components/sections/Hero"
-import UploadSection from "../components/sections/UploadSection"
+"use client"
+
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 export default function Home() {
-  return (
-    <main className="min-h-screen bg-white">
 
-      <Navbar />
+  const router = useRouter()
 
-      <Hero />
+  useEffect(() => {
+    router.push("/dashboard")
+  }, [])
 
-      <UploadSection />
-
-    </main>
-  )
+  return null
 }
