@@ -2,6 +2,7 @@
 
 import { ReactNode } from "react"
 import { LayoutDashboard, Upload, BarChart } from "lucide-react"
+import Topbar from "./Topbar"   // ✅ make sure this import exists
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
 
@@ -35,8 +36,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </nav>
       </aside>
 
-      {/* Main Content */}
+      {/* MAIN CONTENT */}
       <main className="flex-1 overflow-y-auto p-8">
+        <Topbar />
         {children}
       </main>
 
