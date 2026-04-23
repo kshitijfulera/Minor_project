@@ -6,7 +6,7 @@ import { motion } from "framer-motion"
 import { UploadCloud } from "lucide-react"
 import DifficultyChart from "../DifficultyChart"
 
-export default function UploadSection() {
+export default function UploadSection({ setStats }: any) {
 
   const [files, setFiles] = useState<File[]>([])
   const [apiResponse, setApiResponse] = useState<any>(null)
@@ -37,6 +37,22 @@ export default function UploadSection() {
 
       const data = await response.json()
 
+      // ✅ ADD HERE
+      const difficulties = data.data.map((d: any) => d.difficulty_score)
+
+      const avg =
+        difficulties.reduce((a: number, b: number) => a + b, 0) /
+        difficulties.length
+
+      console.log("AVG DIFFICULTY:", avg)
+
+      // ✅ update stats
+      setStats({
+        total: difficulties.length,
+        avgDifficulty: avg
+      })
+
+      // existing
       setApiResponse(data)
 
     } catch (error) {
