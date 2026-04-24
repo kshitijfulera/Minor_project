@@ -3,24 +3,55 @@
 import { useEffect, useState } from "react"
 import DashboardLayout from "../../components/layout/DashboardLayout"
 import UploadSection from "../../components/sections/UploadSection"
+import AnalyticsChart from "../../components/dashboard/AnalyticsChart"
+import History from "../../components/dashboard/History"
 
 export default function DashboardPage() {
 
-  // ✅ Persistent stats (localStorage)
-  const [stats, setStats] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("stats")
-      return saved
-        ? JSON.parse(saved)
-        : { total: 0, avgDifficulty: 0 }
-    }
-    return { total: 0, avgDifficulty: 0 }
+  // 📦 Store all levels from DB
+  const [levels, setLevels] = useState<any[]>([])
+
+  // 📊 Stats (derived from DB, NOT localStorage anymore)
+  const [stats, setStats] = useState({
+    total: 0,
+    avgDifficulty: 0
   })
 
-  // ✅ Save to localStorage whenever stats change
+  // 🚀 Fetch data from backend
+  const fetchLevels = () => {
+    fetch("http://127.0.0.1:8000/levels")
+      .then(res => res.json())
+      .then(res => {
+        setLevels(res.data)
+      })
+      .catch(err => console.error("Fetch error:", err))
+  }
+
+  // 🔁 Load data on page load
   useEffect(() => {
-    localStorage.setItem("stats", JSON.stringify(stats))
-  }, [stats])
+    fetchLevels()
+  }, [])
+
+  // 📊 Compute stats from DB data
+  useEffect(() => {
+    if (levels.length > 0) {
+      const difficulties = levels.map(l => l.difficulty_score)
+
+      const avg =
+        difficulties.reduce((a, b) => a + b, 0) /
+        difficulties.length
+
+      setStats({
+        total: levels.length,
+        avgDifficulty: avg
+      })
+    } else {
+      setStats({
+        total: 0,
+        avgDifficulty: 0
+      })
+    }
+  }, [levels])
 
   return (
     <DashboardLayout>
@@ -59,8 +90,17 @@ export default function DashboardPage() {
 
       </div>
 
-      {/* 📤 Upload Section (passes setStats) */}
-      <UploadSection setStats={setStats} />
+      {/* 📤 Upload Section */}
+      <UploadSection
+        setStats={setStats}
+        refreshData={fetchLevels}   // 🔥 refresh after upload
+      />
+
+      {/* 📜 History */}
+      <History data={levels} />
+
+      {/* 📈 Analytics Chart */}
+      <AnalyticsChart data={levels} />
 
     </DashboardLayout>
   )

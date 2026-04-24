@@ -2,6 +2,8 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import logging
+from app.db import levels_collection
+from datetime import datetime
 
 # 🔧 Your services
 from utils.feature_extractor import extract_features
@@ -99,6 +101,13 @@ async def upload_level(files: List[UploadFile] = File(...)):
                 "features": features,
                 "difficulty_score": difficulty,
                 "recommendations": recommendations
+            })
+            levels_collection.insert_one({
+                "filename": file.filename,
+                "features": features,
+                "difficulty_score": difficulty,
+                "recommendations": recommendations,
+                "created_at": datetime.utcnow()
             })
 
         except HTTPException as http_err:
