@@ -1,19 +1,28 @@
 import pickle
-import pandas as pd
+import os
 
-# Load model
-with open("ml_model/model.pkl", "rb") as f:
-    model = pickle.load(f)
+model = None
 
-def predict_difficulty(features: dict):
+def load_model():
+    global model
+    if model is None:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(base_dir, "model.pkl")
 
-    input_data = pd.DataFrame([{
-        "enemy_count": features["enemy_count"],
-        "spawn_rate": features["spawn_rate"],
-        "rewards": features["rewards"],
-        "checkpoints": features["checkpoints"]
-    }])
+        with open(model_path, "rb") as f:
+            model = pickle.load(f)
 
-    prediction = model.predict(input_data)[0]
+    return model
 
-    return float(prediction)
+
+def predict_difficulty(features):
+    model = load_model()
+
+    input_data = [[
+        features["enemy_count"],
+        features["spawn_rate"],
+        features["rewards"],
+        features["checkpoints"]
+    ]]
+
+    return float(model.predict(input_data)[0])
