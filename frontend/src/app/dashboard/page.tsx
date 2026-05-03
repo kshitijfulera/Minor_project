@@ -4,84 +4,86 @@ import { useEffect, useState } from "react"
 import DashboardLayout from "../../components/layout/DashboardLayout"
 import UploadSection from "../../components/sections/UploadSection"
 import AnalyticsChart from "../../components/dashboard/AnalyticsChart"
-import History from "../../components/dashboard/History"
+import History from "@/components/dashboard/History"
 
 export default function DashboardPage() {
 
-  // 📦 Store all levels from DB
+  // Always array
   const [levels, setLevels] = useState<any[]>([])
 
-  // 📊 Stats (derived from DB, NOT localStorage anymore)
   const [stats, setStats] = useState({
     total: 0,
     avgDifficulty: 0
   })
 
-  // 🚀 Fetch data from backend
-  const fetchLevels = () => {
-    fetch("http://127.0.0.1:8000/levels")
-      .then(res => res.json())
-      .then(res => {
-        setLevels(res.data)
-      })
-      .catch(err => console.error("Fetch error:", err))
+  // Fetch safely
+  const fetchLevels = async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:8000/levels")
+      const json = await res.json()
+
+      // ensure array
+      const safeData = Array.isArray(json.data) ? json.data : []
+      setLevels(safeData)
+
+    } catch (err) {
+      console.error("Fetch error:", err)
+      setLevels([]) // fallback
+    }
   }
 
-  // 🔁 Load data on page load
   useEffect(() => {
     fetchLevels()
   }, [])
 
-  // 📊 Compute stats from DB data
+  // Compute stats safely
   useEffect(() => {
-    if (levels.length > 0) {
-      const difficulties = levels.map(l => l.difficulty_score)
-
-      const avg =
-        difficulties.reduce((a, b) => a + b, 0) /
-        difficulties.length
-
-      setStats({
-        total: levels.length,
-        avgDifficulty: avg
-      })
-    } else {
-      setStats({
-        total: 0,
-        avgDifficulty: 0
-      })
+    if (!Array.isArray(levels) || levels.length === 0) {
+      setStats({ total: 0, avgDifficulty: 0 })
+      return
     }
+
+    const valid = levels.filter(
+      (l) => typeof l?.difficulty_score === "number"
+    )
+
+    if (valid.length === 0) {
+      setStats({ total: 0, avgDifficulty: 0 })
+      return
+    }
+
+    const avg =
+      valid.reduce((a, b) => a + b.difficulty_score, 0) /
+      valid.length
+
+    setStats({
+      total: valid.length,
+      avgDifficulty: avg
+    })
+
   }, [levels])
 
   return (
     <DashboardLayout>
 
-      {/* 🔴 Reset Button */}
-      <button
-        onClick={() => setStats({ total: 0, avgDifficulty: 0 })}
-        className="mb-6 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
-      >
-        Reset Stats
-      </button>
-
-      {/* 📊 Stats Cards */}
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-6 mb-8">
 
-        <div className="bg-white p-6 rounded-xl shadow hover:shadow-lg transition">
+        <div className="bg-white p-6 rounded-xl shadow">
           <p className="text-slate-500">Total Uploads</p>
           <h3 className="text-3xl font-bold text-indigo-600">
             {stats.total}
           </h3>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow hover:shadow-lg transition">
+        <div className="bg-white p-6 rounded-xl shadow">
           <p className="text-slate-500">Avg Difficulty</p>
           <h3 className="text-3xl font-bold text-indigo-600">
             {stats.avgDifficulty.toFixed(2)}
           </h3>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow hover:shadow-lg transition">
+        <div className="bg-white p-6 rounded-xl shadow">
           <p className="text-slate-500">System Status</p>
           <h3 className="text-3xl font-bold text-green-500">
             Active
@@ -90,16 +92,10 @@ export default function DashboardPage() {
 
       </div>
 
-      {/* 📤 Upload Section */}
-      <UploadSection
-        setStats={setStats}
-        refreshData={fetchLevels}   // 🔥 refresh after upload
-      />
+      <UploadSection refreshData={fetchLevels} />
 
-      {/* 📜 History */}
       <History data={levels} />
 
-      {/* 📈 Analytics Chart */}
       <AnalyticsChart data={levels} />
 
     </DashboardLayout>

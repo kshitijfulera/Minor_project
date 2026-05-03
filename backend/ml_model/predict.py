@@ -1,17 +1,12 @@
 import pickle
-import os
 
 model = None
 
 def load_model():
     global model
     if model is None:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(base_dir, "model.pkl")
-
-        with open(model_path, "rb") as f:
+        with open("ml_model/model.pkl", "rb") as f:
             model = pickle.load(f)
-
     return model
 
 

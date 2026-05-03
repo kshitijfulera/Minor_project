@@ -1,11 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import logging
-from app.db import levels_collection
 from datetime import datetime
 
-# 🔧 Your services
+from db import levels_collection
 from utils.feature_extractor import extract_features
 from ml_model.predict import predict_difficulty
 from services.recommendation_engine import generate_recommendation
@@ -26,110 +25,80 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 # =========================
-# 🔐 CORS (Restrict in prod)
+# 🔐 CORS
 # =========================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # change in production
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # =========================
-# 📤 Upload Endpoint
+# 🔄 Background Processor
+# =========================
+def process_file(content, filename):
+    try:
+        logger.info(f"[BG] Processing {filename}")
+
+        features = extract_features(content)
+
+        if not features:
+            logger.error("Invalid features")
+            return
+
+        difficulty = predict_difficulty(features)
+        recommendations = generate_recommendation(features, difficulty)
+
+        levels_collection.insert_one({
+            "filename": filename,
+            "features": features,
+            "difficulty_score": difficulty,
+            "recommendations": recommendations,
+            "created_at": datetime.utcnow()
+        })
+
+        logger.info(f"[BG] Done {filename}")
+
+    except Exception as e:
+        logger.error(f"[BG] Error: {e}")
+
+# =========================
+# 📤 Upload (INSTANT)
 # =========================
 @app.post("/upload-level")
-async def upload_level(files: List[UploadFile] = File(...)):
-
+async def upload_level(
+    background_tasks: BackgroundTasks,
+    files: List[UploadFile] = File(...)
+):
     logger.info("Received upload request")
-
-    results = []
 
     for file in files:
 
-        logger.info(f"Processing file: {file.filename}")
-
-        # =========================
-        # 🔐 File Type Validation
-        # =========================
         if file.content_type != "application/json":
-            raise HTTPException(
-                status_code=400,
-                detail=f"{file.filename} is not a JSON file"
-            )
+            raise HTTPException(status_code=400, detail="Invalid file")
 
         content = await file.read()
 
-        # =========================
-        # 🔐 File Size Validation
-        # =========================
-        if len(content) > 1_000_000:  # ~1MB limit
-            raise HTTPException(
-                status_code=400,
-                detail=f"{file.filename} is too large"
-            )
-
-        try:
-            # =========================
-            # 🧠 Feature Extraction
-            # =========================
-            features = extract_features(content)
-
-            if not features:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid file content"
-                )
-
-            logger.info(f"Extracted features: {features}")
-
-            # =========================
-            # 🤖 ML Prediction
-            # =========================
-            difficulty = predict_difficulty(features)
-
-            logger.info(f"Predicted difficulty: {difficulty}")
-
-            # =========================
-            # 💡 Recommendation Engine
-            # =========================
-            recommendations = generate_recommendation(features, difficulty)
-
-            results.append({
-                "filename": file.filename,
-                "features": features,
-                "difficulty_score": difficulty,
-                "recommendations": recommendations
-            })
-            levels_collection.insert_one({
-                "filename": file.filename,
-                "features": features,
-                "difficulty_score": difficulty,
-                "recommendations": recommendations,
-                "created_at": datetime.utcnow()
-            })
-
-        except HTTPException as http_err:
-            raise http_err
-
-        except Exception as e:
-            logger.error(f"Error processing file: {str(e)}")
-
-            raise HTTPException(
-                status_code=500,
-                detail="Internal processing error"
-            )
-
-    logger.info("Processing complete")
+        # 🚀 Run in background
+        background_tasks.add_task(process_file, content, file.filename)
 
     return {
-        "status": "processed",
-        "data": results
+        "status": "accepted",
+        "message": "Processing in background"
     }
 
 # =========================
-# 🧪 Health Check (important)
+# 📥 Get Levels
+# =========================
+@app.get("/levels")
+def get_levels():
+    levels = list(levels_collection.find({}, {"_id": 0}))
+    return {"data": levels}
+
+# =========================
+# 🧪 Health Check
 # =========================
 @app.get("/")
 def health_check():
