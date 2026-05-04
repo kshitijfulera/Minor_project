@@ -1,28 +1,24 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+import json
 import logging
 from datetime import datetime
 
 from db import levels_collection
-from utils.feature_extractor import extract_features
+
+# ✅ NEW
+from app.schemas import LevelJSON
+from utils.json_feature_extractor import extract_features
 from ml_model.predict import predict_difficulty
-from services.recommendation_engine import generate_recommendation
-from tasks import process_file_task
-from utils.video_feature_extractor import extract_video_features
 
 # =========================
-# 🧠 Logging Setup
+# 🧠 Logging
 # =========================
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # =========================
-# 🚀 FastAPI App
+# 🚀 App
 # =========================
 app = FastAPI()
 
@@ -32,56 +28,75 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # =========================
-# 🔄 Background Processor
+# 🧪 Health
 # =========================
-def process_file(content, filename):
+@app.get("/")
+def health():
+    return {"status": "API running"}
+
+# =========================
+# 📤 Analyze JSON (MAIN ENDPOINT)
+# =========================
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...)):
+
+    if file.content_type != "application/json":
+        raise HTTPException(400, "Only JSON allowed")
+
+    content = await file.read()
+
+    if len(content) > 1_000_000:
+        raise HTTPException(400, "File too large")
+
     try:
-        logger.info(f"[BG] Processing {filename}")
+        data = json.loads(content)
 
-        features = extract_features(content)
-
-        if not features:
-            logger.error("Invalid features")
-            return
-
-        difficulty = predict_difficulty(features)
-        recommendations = generate_recommendation(features, difficulty)
-
-        levels_collection.insert_one({
-            "filename": filename,
-            "features": features,
-            "difficulty_score": difficulty,
-            "recommendations": recommendations,
-            "created_at": datetime.utcnow()
-        })
-
-        logger.info(f"[BG] Done {filename}")
+        # ✅ Validate structure
+        LevelJSON(**data)
 
     except Exception as e:
-        logger.error(f"[BG] Error: {e}")
+        raise HTTPException(422, f"Invalid JSON: {e}")
 
-# =========================
-# 📤 Upload (INSTANT)
-# =========================
-@app.post("/upload-level")
-async def upload_level(files: List[UploadFile] = File(...)):
+    try:
+        # =========================
+        # 🧠 Feature Extraction
+        # =========================
+        features = extract_features(content)
 
-    for file in files:
-        content = await file.read()
+        logger.info(f"Features: {features}")
 
-        # 🚀 send to queue
-        process_file_task.delay(content, file.filename)
+        # =========================
+        # 🤖 Prediction
+        # =========================
+        difficulty = predict_difficulty(features)
 
-    return {
-        "status": "queued",
-        "message": "Processing in background"
-    }
+        logger.info(f"Difficulty: {difficulty}")
+
+        # =========================
+        # 💾 Save
+        # =========================
+        levels_collection.insert_one({
+            "filename": file.filename,
+            "features": features,
+            "difficulty_score": difficulty,
+            "created_at": datetime.utcnow(),
+            "source": "json"
+        })
+
+        return {
+            "difficulty_score": difficulty,
+            "features": features,
+            "recommendations": generate_recommendations(features)
+        }
+
+    except Exception as e:
+        logger.error(str(e))
+        raise HTTPException(500, "Processing error")
 
 # =========================
 # 📥 Get Levels
@@ -92,28 +107,22 @@ def get_levels():
     return {"data": levels}
 
 # =========================
-# 🧪 Health Check
+# 💡 Recommendations
 # =========================
-@app.get("/")
-def health_check():
-    return {"status": "API is running"}
+def generate_recommendations(f):
 
-@app.post("/upload-video")
-async def upload_video(file: UploadFile = File(...)):
+    rec = []
 
-    if not file.filename.endswith(".mp4"):
-        raise HTTPException(status_code=400, detail="Only MP4 allowed")
+    if f["enemy_density"] > 0.05:
+        rec.append("Reduce enemy density")
 
-    temp_path = f"temp_{file.filename}"
+    if f["projectile_rate"] > 2:
+        rec.append("Reduce projectile fire rate")
 
-    with open(temp_path, "wb") as f:
-        f.write(await file.read())
+    if f["avg_threat"] < 20:
+        rec.append("Increase spacing near player spawn")
 
-    features = extract_video_features(temp_path)
+    if not rec:
+        rec.append("Level looks balanced")
 
-    difficulty = predict_difficulty(features)
-
-    return {
-        "features": features,
-        "difficulty": difficulty
-    }
+    return rec

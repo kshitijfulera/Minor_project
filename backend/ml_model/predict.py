@@ -1,23 +1,23 @@
-import pickle
+import joblib
+import numpy as np
 
-model = None
+model = joblib.load("ml_model/json_model.pkl")
 
-def load_model():
-    global model
-    if model is None:
-        with open("ml_model/model.pkl", "rb") as f:
-            model = pickle.load(f)
-    return model
+FEATURE_ORDER = [
+    "enemy_density",
+    "projectile_rate",
+    "avg_threat",
+    "chaos",
+    "cluster_score",
+    "safety_factor"
+]
 
+def predict_difficulty(features: dict):
 
-def predict_difficulty(features):
-    model = load_model()
+    input_data = np.array([[
+        features[k] for k in FEATURE_ORDER
+    ]])
 
-    input_data = [[
-        features["enemy_count"],
-        features["spawn_rate"],
-        features["rewards"],
-        features["checkpoints"]
-    ]]
+    prediction = model.predict(input_data)[0]
 
-    return float(model.predict(input_data)[0])
+    return float(max(0, min(1, prediction)))
