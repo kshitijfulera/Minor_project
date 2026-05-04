@@ -8,6 +8,8 @@ from db import levels_collection
 from utils.feature_extractor import extract_features
 from ml_model.predict import predict_difficulty
 from services.recommendation_engine import generate_recommendation
+from tasks import process_file_task
+from utils.video_feature_extractor import extract_video_features
 
 # =========================
 # 🧠 Logging Setup
@@ -68,24 +70,16 @@ def process_file(content, filename):
 # 📤 Upload (INSTANT)
 # =========================
 @app.post("/upload-level")
-async def upload_level(
-    background_tasks: BackgroundTasks,
-    files: List[UploadFile] = File(...)
-):
-    logger.info("Received upload request")
+async def upload_level(files: List[UploadFile] = File(...)):
 
     for file in files:
-
-        if file.content_type != "application/json":
-            raise HTTPException(status_code=400, detail="Invalid file")
-
         content = await file.read()
 
-        # 🚀 Run in background
-        background_tasks.add_task(process_file, content, file.filename)
+        # 🚀 send to queue
+        process_file_task.delay(content, file.filename)
 
     return {
-        "status": "accepted",
+        "status": "queued",
         "message": "Processing in background"
     }
 
@@ -103,3 +97,23 @@ def get_levels():
 @app.get("/")
 def health_check():
     return {"status": "API is running"}
+
+@app.post("/upload-video")
+async def upload_video(file: UploadFile = File(...)):
+
+    if not file.filename.endswith(".mp4"):
+        raise HTTPException(status_code=400, detail="Only MP4 allowed")
+
+    temp_path = f"temp_{file.filename}"
+
+    with open(temp_path, "wb") as f:
+        f.write(await file.read())
+
+    features = extract_video_features(temp_path)
+
+    difficulty = predict_difficulty(features)
+
+    return {
+        "features": features,
+        "difficulty": difficulty
+    }
