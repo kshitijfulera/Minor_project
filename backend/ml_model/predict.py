@@ -1,28 +1,38 @@
-import pickle
-import os
+import joblib
+import numpy as np
+import pandas as pd
 
-model = None
+model = joblib.load("ml_model/json_model.pkl")
 
-def load_model():
-    global model
-    if model is None:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(base_dir, "model.pkl")
-
-        with open(model_path, "rb") as f:
-            model = pickle.load(f)
-
-    return model
+FEATURE_ORDER = [
+    "enemy_density",
+    "projectile_rate",
+    "danger_score",
+    "cluster_score",
+    "difficulty_pressure"
+]
 
 
-def predict_difficulty(features):
-    model = load_model()
+def predict_difficulty(features: dict):
 
-    input_data = [[
-        features["enemy_count"],
-        features["spawn_rate"],
-        features["rewards"],
-        features["checkpoints"]
-    ]]
+    # convert to DataFrame (fix warning + keep names)
+    input_df = pd.DataFrame([features])[FEATURE_ORDER]
 
-    return float(model.predict(input_data)[0])
+    # 🌲 Get predictions from all trees
+    all_preds = np.array([
+        tree.predict(input_df)[0]
+        for tree in model.estimators_
+    ])
+
+    # 🎯 final prediction
+    prediction = float(np.mean(all_preds))
+
+    # 📊 confidence = inverse of variance
+    variance = np.var(all_preds)
+
+    confidence = float(1 / (1 + variance))
+
+    # clamp values
+    confidence = max(0.2, min(0.95, confidence))
+
+    return prediction, confidence

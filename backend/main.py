@@ -2,16 +2,20 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import logging
-from app.db import levels_collection
 from datetime import datetime
 
-# 🔧 Your services
-from utils.feature_extractor import extract_features
+# 🔧 DB
+from db import levels_collection
+
+# 🔧 ML + features
+from utils.json_feature_extractor import extract_features
 from ml_model.predict import predict_difficulty
-from services.recommendation_engine import generate_recommendation
+
+# 🔧 Explainability
+from services.explain import explain_prediction, feature_contributions
 
 # =========================
-# 🧠 Logging Setup
+# 🧠 Logging
 # =========================
 logging.basicConfig(
     level=logging.INFO,
@@ -21,107 +25,132 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # =========================
-# 🚀 FastAPI App
+# 🚀 App
 # =========================
 app = FastAPI()
 
 # =========================
-# 🔐 CORS (Restrict in prod)
+# 🔐 CORS
 # =========================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # change in production
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # =========================
-# 📤 Upload Endpoint
+# 🧪 Health
+# =========================
+@app.get("/")
+def health():
+    return {"status": "API running"}
+
+# =========================
+# 📊 Analyze (MAIN)
+# =========================
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...)):
+    try:
+        logger.info("📥 Received file for analysis")
+
+        if file.content_type != "application/json":
+            raise HTTPException(status_code=400, detail="Invalid file type")
+
+        content = await file.read()
+
+        # 🔍 Extract features
+        features = extract_features(content)
+        logger.info(f"Features: {features}")
+
+        # 🤖 Predict
+        difficulty, confidence = predict_difficulty(features)
+
+        # 🎯 Difficulty category
+        if difficulty > 0.7:
+            category = "Hard"
+        elif difficulty > 0.4:
+            category = "Medium"
+        else:
+            category = "Easy"
+
+        # 🧠 Explain
+        explanation = explain_prediction(features)
+        contributions = feature_contributions(features)
+
+        # 📦 Result object
+        result = {
+            "filename": file.filename,
+            "difficulty_score": float(difficulty),
+            "confidence": float(confidence),
+            "category": category,
+            "features": features,
+            "explanation": explanation,
+            "contributions": contributions,
+            "model_version": "v1.0",
+            "created_at": datetime.utcnow()
+        }
+
+        # 💾 Save to DB
+        inserted = levels_collection.insert_one(result)
+
+        # 🔥 FIX ObjectId issue
+        result["_id"] = str(inserted.inserted_id)
+
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Error: {str(e)}")
+        return {"error": str(e)}
+
+# =========================
+# 📤 Upload multiple files
 # =========================
 @app.post("/upload-level")
 async def upload_level(files: List[UploadFile] = File(...)):
 
-    logger.info("Received upload request")
-
     results = []
 
     for file in files:
-
-        logger.info(f"Processing file: {file.filename}")
-
-        # =========================
-        # 🔐 File Type Validation
-        # =========================
-        if file.content_type != "application/json":
-            raise HTTPException(
-                status_code=400,
-                detail=f"{file.filename} is not a JSON file"
-            )
-
-        content = await file.read()
-
-        # =========================
-        # 🔐 File Size Validation
-        # =========================
-        if len(content) > 1_000_000:  # ~1MB limit
-            raise HTTPException(
-                status_code=400,
-                detail=f"{file.filename} is too large"
-            )
-
         try:
-            # =========================
-            # 🧠 Feature Extraction
-            # =========================
+            if file.content_type != "application/json":
+                continue
+
+            content = await file.read()
+
             features = extract_features(content)
+            difficulty, confidence = predict_difficulty(features)
 
-            if not features:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid file content"
-                )
+            if difficulty > 0.7:
+                category = "Hard"
+            elif difficulty > 0.4:
+                category = "Medium"
+            else:
+                category = "Easy"
 
-            logger.info(f"Extracted features: {features}")
+            explanation = explain_prediction(features)
+            contributions = feature_contributions(features)
 
-            # =========================
-            # 🤖 ML Prediction
-            # =========================
-            difficulty = predict_difficulty(features)
-
-            logger.info(f"Predicted difficulty: {difficulty}")
-
-            # =========================
-            # 💡 Recommendation Engine
-            # =========================
-            recommendations = generate_recommendation(features, difficulty)
-
-            results.append({
+            result = {
                 "filename": file.filename,
+                "difficulty_score": float(difficulty),
+                "confidence": float(confidence),
+                "category": category,
                 "features": features,
-                "difficulty_score": difficulty,
-                "recommendations": recommendations
-            })
-            levels_collection.insert_one({
-                "filename": file.filename,
-                "features": features,
-                "difficulty_score": difficulty,
-                "recommendations": recommendations,
+                "explanation": explanation,
+                "contributions": contributions,
+                "model_version": "v1.0",
                 "created_at": datetime.utcnow()
-            })
+            }
 
-        except HTTPException as http_err:
-            raise http_err
+            inserted = levels_collection.insert_one(result)
+            result["_id"] = str(inserted.inserted_id)
+
+            results.append(result)
 
         except Exception as e:
-            logger.error(f"Error processing file: {str(e)}")
-
-            raise HTTPException(
-                status_code=500,
-                detail="Internal processing error"
-            )
-
-    logger.info("Processing complete")
+            logger.error(f"Error processing {file.filename}: {e}")
 
     return {
         "status": "processed",
@@ -129,8 +158,15 @@ async def upload_level(files: List[UploadFile] = File(...)):
     }
 
 # =========================
-# 🧪 Health Check (important)
+# 📥 Get all levels
 # =========================
-@app.get("/")
-def health_check():
-    return {"status": "API is running"}
+@app.get("/levels")
+def get_levels():
+
+    levels = []
+
+    for item in levels_collection.find().sort("created_at", -1):
+        item["_id"] = str(item["_id"])  # fix ObjectId
+        levels.append(item)
+
+    return {"data": levels}
