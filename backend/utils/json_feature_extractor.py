@@ -108,11 +108,7 @@ def extract_features(content: bytes):
     return {
         "enemy_density": float(enemy_density),
         "projectile_rate": float(projectile_rate),
-        "avg_threat": float(avg_threat),
         "danger_score": float(danger_score),
-        "chaos": float(chaos),
         "cluster_score": float(cluster_score),
-        "safety_factor": float(checkpoint_factor),
-        "spawn_rate": float(spawn_rate),
         "difficulty_pressure": float(difficulty_pressure)
     }

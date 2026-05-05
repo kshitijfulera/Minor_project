@@ -8,13 +8,26 @@ from sklearn.ensemble import RandomForestRegressor
 # =========================
 df = pd.read_csv("dataset/json_features.csv")
 
+# 🔍 DEBUG CHECK (temporary)
+print("\n=== DATASET CHECK ===")
+print(df.head())
+print("\nCOLUMNS:", df.columns.tolist())
+
 print("Dataset preview:")
 print(df.head())
 
 # =========================
 # 🎯 Split features/target
 # =========================
-X = df.drop("difficulty", axis=1)
+X = df[
+    [
+    "enemy_density",
+    "projectile_rate",
+    "danger_score",
+    "cluster_score",
+    "difficulty_pressure"
+    ]
+]
 y = df["difficulty"]
 
 # =========================

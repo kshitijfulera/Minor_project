@@ -1,74 +1,87 @@
 "use client"
 
-import { useCallback } from "react"
-import { useDropzone } from "react-dropzone"
+import { useCallback, useState } from "react"
+import toast from "react-hot-toast"
 
-export default function UploadSection({ refreshData }: any) {
+export default function UploadSection({
+  setStats,
+  refreshData
+}: any) {
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    try {
+  const [loading, setLoading] = useState(false)
+
+  const onUpload = useCallback(async (event: any) => {
+  const files = event.target.files
+  if (!files || files.length === 0) return
+
+  try {
+    setLoading(true)
+
+    for (let file of files) {
       const formData = new FormData()
+      formData.append("file", file)
 
-      // 📦 Add all files
-      acceptedFiles.forEach((file) => {
-        formData.append("files", file)
-      })
-
-      console.log("Uploading files:", acceptedFiles)
-
-      const res = await fetch("http://127.0.0.1:8000/upload-level", {
+      const res = await fetch("http://localhost:8000/analyze", {
         method: "POST",
         body: formData
       })
 
-      if (!res.ok) {
-        throw new Error("Upload failed")
-      }
-
       const data = await res.json()
-      console.log("Upload success:", data)
 
-      // 🔄 Refresh dashboard (IMPORTANT)
-      if (typeof refreshData === "function") {
-        refreshData()
+      if (!res.ok || data.error) {
+        toast.error(`❌ Failed: ${file.name}`)
+        continue
       }
 
-    } catch (err) {
-      console.error("Upload error:", err)
-    }
-  }, [refreshData])
+      // ✅ Success toast
+      toast.success(`✅ Uploaded: ${file.name}`)
 
-  // 📥 Drag & Drop
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      "application/json": [".json"]
+      // update stats
+      setStats((prev: any) => {
+        const newTotal = prev.total + 1
+        const newAvg =
+          (prev.avgDifficulty * prev.total + data.difficulty_score) /
+          newTotal
+
+        return {
+          total: newTotal,
+          avgDifficulty: newAvg
+        }
+      })
     }
-  })
+
+    // 🔄 Refresh dashboard
+    await refreshData()
+
+  } catch (err) {
+    console.error(err)
+    toast.error("🚨 Upload failed. Server not reachable.")
+  } finally {
+    setLoading(false)
+  }
+
+}, [setStats, refreshData])
 
   return (
-    <div className="mb-10">
-      <div
-        {...getRootProps()}
-        className="border-2 border-dashed border-indigo-400 p-10 text-center rounded-xl bg-white shadow hover:shadow-lg transition cursor-pointer"
-      >
-        <input {...getInputProps()} />
+    <div className="mb-6">
 
-        {isDragActive ? (
-          <p className="text-indigo-600 font-medium">
-            Drop your JSON files here...
-          </p>
-        ) : (
-          <div>
-            <p className="text-lg font-semibold text-gray-700">
-              Drag & drop JSON files here
-            </p>
-            <p className="text-sm text-gray-500 mt-2">
-              or click to select files
-            </p>
-          </div>
-        )}
-      </div>
+      {/* 📤 File input */}
+      <input
+        type="file"
+        accept=".json"
+        multiple
+        onChange={onUpload}
+        className="border p-2 rounded"
+      />
+
+      {/* ⏳ Loading */}
+      {loading && (
+        <div className="mt-3 flex items-center gap-2 text-blue-500 text-sm">
+          <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+          Processing...
+        </div>
+      )}
+
     </div>
   )
 }

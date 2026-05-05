@@ -1,53 +1,48 @@
 "use client"
 
-import { Bar } from "react-chartjs-2"
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
   Tooltip,
-  Legend
-} from "chart.js"
+  ResponsiveContainer,
+  CartesianGrid
+} from "recharts"
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-)
+export default function AnalyticsChart({ data }: any) {
 
-export default function AnalyticsChart({ data = [] }: any) {
-
-  // ✅ Prevent crash if data is undefined
   if (!data || data.length === 0) {
-    return (
-      <div className="bg-white p-6 rounded-xl shadow mt-6">
-        <h3 className="text-lg font-semibold">No data available</h3>
-      </div>
-    )
+    return <p>No data for chart</p>
   }
 
-  const labels = data.map((d: any) => d.filename)
-  const difficulty = data.map((d: any) => d.difficulty_score)
-
-  const chartData = {
-    labels,
-    datasets: [
-      {
-        label: "Difficulty Score",
-        data: difficulty
-      }
-    ]
-  }
+  const chartData = data.map((item: any, index: number) => ({
+    name: item.filename || `Level ${index + 1}`,
+    difficulty: item.difficulty_score || 0
+  }))
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow mt-6">
-      <h3 className="text-lg font-semibold mb-4">Difficulty Analysis</h3>
-      <Bar data={chartData} />
+    <div className="bg-white p-6 rounded-xl shadow mb-8">
+
+      <h2 className="text-xl font-semibold mb-4">
+        Difficulty Trend
+      </h2>
+
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={chartData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" />
+          <YAxis />
+          <Tooltip />
+          <Line
+            type="monotone"
+            dataKey="difficulty"
+            stroke="#3b82f6"
+            strokeWidth={2}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+
     </div>
   )
 }

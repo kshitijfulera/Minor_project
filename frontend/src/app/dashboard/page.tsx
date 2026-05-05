@@ -1,103 +1,84 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import DashboardLayout from "../../components/layout/DashboardLayout"
 import UploadSection from "../../components/sections/UploadSection"
+import History from "../../components/dashboard/History"
 import AnalyticsChart from "../../components/dashboard/AnalyticsChart"
-import History from "@/components/dashboard/History"
 
 export default function DashboardPage() {
-
-  // Always array
   const [levels, setLevels] = useState<any[]>([])
-
   const [stats, setStats] = useState({
     total: 0,
     avgDifficulty: 0
   })
 
-  // Fetch safely
-  const fetchLevels = async () => {
+  // 🔄 Fetch all levels from backend
+  const refreshData = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/levels")
-      const json = await res.json()
+      const res = await fetch("http://localhost:8000/levels")
+      const data = await res.json()
 
-      // ensure array
-      const safeData = Array.isArray(json.data) ? json.data : []
-      setLevels(safeData)
+      const list = data?.data || []
+      setLevels(list)
 
+      // 📊 recompute stats
+      if (list.length > 0) {
+        const diffs = list.map((l: any) => l.difficulty_score || 0)
+        const avg =
+          diffs.reduce((a: number, b: number) => a + b, 0) / diffs.length
+
+        setStats({
+          total: list.length,
+          avgDifficulty: avg
+        })
+      } else {
+        setStats({ total: 0, avgDifficulty: 0 })
+      }
     } catch (err) {
-      console.error("Fetch error:", err)
-      setLevels([]) // fallback
+      console.error("Failed to fetch levels:", err)
     }
   }
 
+  // 📥 Load once on page mount
   useEffect(() => {
-    fetchLevels()
+    refreshData()
   }, [])
 
-  // Compute stats safely
-  useEffect(() => {
-    if (!Array.isArray(levels) || levels.length === 0) {
-      setStats({ total: 0, avgDifficulty: 0 })
-      return
-    }
-
-    const valid = levels.filter(
-      (l) => typeof l?.difficulty_score === "number"
-    )
-
-    if (valid.length === 0) {
-      setStats({ total: 0, avgDifficulty: 0 })
-      return
-    }
-
-    const avg =
-      valid.reduce((a, b) => a + b.difficulty_score, 0) /
-      valid.length
-
-    setStats({
-      total: valid.length,
-      avgDifficulty: avg
-    })
-
-  }, [levels])
-
   return (
-    <DashboardLayout>
+    <div className="p-6">
 
-      {/* Stats */}
+      {/* 🔹 Stats */}
       <div className="grid grid-cols-3 gap-6 mb-8">
-
         <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-slate-500">Total Uploads</p>
-          <h3 className="text-3xl font-bold text-indigo-600">
-            {stats.total}
-          </h3>
+          <p className="text-gray-500">Total Uploads</p>
+          <h3 className="text-3xl font-bold">{stats.total}</h3>
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-slate-500">Avg Difficulty</p>
-          <h3 className="text-3xl font-bold text-indigo-600">
+          <p className="text-gray-500">Avg Difficulty</p>
+          <h3 className="text-3xl font-bold">
             {stats.avgDifficulty.toFixed(2)}
           </h3>
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-slate-500">System Status</p>
-          <h3 className="text-3xl font-bold text-green-500">
-            Active
-          </h3>
+          <p className="text-gray-500">System Status</p>
+          <h3 className="text-green-500 font-bold">Active</h3>
         </div>
-
       </div>
 
-      <UploadSection refreshData={fetchLevels} />
+      {/* 🔹 Upload */}
+      <UploadSection
+        setStats={setStats}
+        refreshData={refreshData}
+      />
 
-      <History data={levels} />
-
+      {/* 🔹 Chart */}
       <AnalyticsChart data={levels} />
 
-    </DashboardLayout>
+      {/* 🔹 History */}
+      <History data={levels} />
+
+    </div>
   )
 }

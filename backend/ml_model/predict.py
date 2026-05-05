@@ -1,23 +1,38 @@
 import joblib
 import numpy as np
+import pandas as pd
 
 model = joblib.load("ml_model/json_model.pkl")
 
 FEATURE_ORDER = [
     "enemy_density",
     "projectile_rate",
-    "avg_threat",
-    "chaos",
+    "danger_score",
     "cluster_score",
-    "safety_factor"
+    "difficulty_pressure"
 ]
+
 
 def predict_difficulty(features: dict):
 
-    input_data = np.array([[
-        features[k] for k in FEATURE_ORDER
-    ]])
+    # convert to DataFrame (fix warning + keep names)
+    input_df = pd.DataFrame([features])[FEATURE_ORDER]
 
-    prediction = model.predict(input_data)[0]
+    # 🌲 Get predictions from all trees
+    all_preds = np.array([
+        tree.predict(input_df)[0]
+        for tree in model.estimators_
+    ])
 
-    return float(max(0, min(1, prediction)))
+    # 🎯 final prediction
+    prediction = float(np.mean(all_preds))
+
+    # 📊 confidence = inverse of variance
+    variance = np.var(all_preds)
+
+    confidence = float(1 / (1 + variance))
+
+    # clamp values
+    confidence = max(0.2, min(0.95, confidence))
+
+    return prediction, confidence
