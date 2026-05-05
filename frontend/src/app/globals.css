@@ -6,7 +6,7 @@
   --highground:#0aaa0a;
 }
 
-@theme inline {
+c  inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -21,7 +21,9 @@
 }
 
 body {
+  font-family: system-ui, sans-serif;
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+ /* hello this is example */

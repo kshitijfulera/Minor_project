@@ -1,0 +1,10 @@
+path: D:/minor_project/backend/dataset
+
+train: images/train
+val: images/val
+
+names:
+  0: player
+  1: enemy
+  2: projectile
+  3: hazard
